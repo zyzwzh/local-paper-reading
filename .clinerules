@@ -1,0 +1,75 @@
+# local-paper-reading Skill
+
+## 何时触发
+
+当用户的消息匹配以下任一条件时，**必须触发**此 Skill：
+
+### 中文触发词
+- 找论文 / 搜论文 / 搜索论文 / 读论文 / 帮我读懂 / 看不懂这篇论文
+- 标注论文 / 标注文献 / 逐段翻译
+- 我想了解 XXX（XXX 是技术主题，如 Transformer、GAN、BERT）
+- 帮我读这篇 PDF / 帮我读这篇论文 / 介绍一篇关于 XXX 的论文
+
+### 英文触发词
+- find/read/search/annotate papers
+- translate this paper paragraph by paragraph
+- I want to learn about XXX
+
+### 关键词
+- arXiv / OpenVINO / 英特尔 / intel / AIPC / 本地 / 离线 / offline
+
+## 如何调用
+
+**唯一入口**：项目根目录下的 `scripts\run.ps1`。
+
+### 模式一：自动搜索 + 标注
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" "我想了解 Transformer"
+```
+
+### 模式二：只搜索不标注
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" "search deep learning" --search-only
+```
+
+### 模式三：标注本地文件
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" "C:\path\to\paper.pdf"
+```
+
+### 模式四：指定标注深度
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" "C:\papers\attention.pdf" --depth intensive|skimming|overview
+```
+
+### 其他操作
+
+```powershell
+# 续传模型下载
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" --continue
+# 清除缓存
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" --clear-cache
+```
+
+## 标注深度说明
+
+| 模式 | 参数 | 适用场景 | 标注内容 |
+|------|------|----------|----------|
+| 精读 | `--depth intensive` | 需要深入理解（默认） | 全文翻译+术语+讲解+高亮 |
+| 泛读 | `--depth skimming` | 快速浏览了解大意 | 摘要结论详标，其余只翻译+术语 |
+| 速览 | `--depth overview` | 只想知道论文讲了什么 | 只标注摘要和结论 |
+
+## 返回值处理
+
+脚本输出 JSON 格式。检查 `ok` 字段判断成功/失败。退出码 3 表示模型下载中，需运行 `--continue`。
+
+## 注意事项
+
+- 首次运行会下载翻译模型（约 200MB）
+- 所有推理在本地完成，论文内容不上传云端
+- 二次运行同一篇论文秒出结果（段落缓存）
+- `scripts\run.ps1` 是唯一入口
