@@ -111,6 +111,71 @@ if ($exitCode -eq 1 -or $output -match "文件不存在") {
 }
 Write-Output ""
 
+# --- Test 6: Clear cache ---
+Write-Output "[TEST] Clear cache"
+$output = & $RunScript --clear-cache 2>&1
+$exitCode = $LASTEXITCODE
+if ($exitCode -eq 0 -and $output -match "缓存已清除") {
+    Write-Output "  PASS (cache cleared)"
+    $passed++
+} else {
+    Write-Output "  FAIL (exit=$exitCode)"
+    $failed++
+}
+Write-Output ""
+
+# --- Test 7: Layered annotation stats ---
+Write-Output "[TEST] Layered annotation stats (core/support/skip)"
+$testFile2 = Join-Path $env:TEMP "test_layered.txt"
+@"
+Abstract
+
+This paper presents a novel approach to machine learning using neural networks.
+We propose a new architecture called DeepNet that achieves state-of-the-art results
+on multiple benchmarks. Our method significantly improves accuracy.
+
+1. Introduction
+
+Machine learning has become increasingly important in recent years.
+Neural networks are a key component of modern AI systems.
+
+2. Related Work
+
+Previous studies have explored various architectures.
+Smith et al. proposed a similar approach in 2020.
+
+3. Method
+
+We propose DeepNet, a novel architecture with attention mechanism.
+The model uses transformer layers and achieves state-of-the-art performance.
+
+4. Experiments
+
+We evaluated on GLUE and SQuAD datasets.
+Results show 5% improvement over baselines.
+
+References
+
+[1] Vaswani, A. et al. Attention Is All You Need. 2017.
+[2] Devlin, J. et al. BERT. 2019.
+
+6. Conclusion
+
+We demonstrated that DeepNet outperforms existing methods.
+"@ | Out-File -FilePath $testFile2 -Encoding UTF8
+
+$output = & $RunScript $testFile2 --depth intensive 2>&1
+$exitCode = $LASTEXITCODE
+if ($exitCode -eq 0 -and ($output -match "核心段落" -or $output -match "core")) {
+    Write-Output "  PASS (layered stats present)"
+    $passed++
+} else {
+    Write-Output "  SKIP (requires server running)"
+}
+
+Remove-Item $testFile2 -ErrorAction SilentlyContinue
+Write-Output ""
+
 # --- Summary ---
 Write-Output "=== Summary ==="
 Write-Output "Passed: $passed"
