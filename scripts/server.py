@@ -151,9 +151,30 @@ class InferenceEngine:
         elif task_type == "terms":
             return [{"en": "NLP", "zh": "自然语言处理", "explain": "让计算机理解人类语言"}]
         elif task_type == "explain":
-            return f"[本地讲解] 本段讨论了相关技术的核心概念。"
+            return "[本地讲解] 本段讨论了相关技术的核心概念。"
         elif task_type == "highlight":
             return [text[:40]] if len(text) > 40 else [text]
+        elif task_type == "glossary":
+            # 批量术语翻译：返回 JSON 列表
+            import json as _json
+            terms = [t.strip() for t in text.strip().split("\n") if t.strip()]
+            return [
+                {"en": t, "zh": f"[术语]{t}", "explain": "演示模式"}
+                for t in terms[:20]
+            ]
+        elif task_type == "paper_summary":
+            return "[论文摘要] 本论文提出了一种新方法，在相关任务上取得了显著效果。（演示模式）"
+        elif task_type == "batch_translate":
+            # 批量翻译：按 [段落N] 分割返回
+            import re as _re
+            parts = _re.split(r'\[段落\d+\]', text)
+            parts = [p.strip() for p in parts if p.strip()]
+            if not parts:
+                return text[:200]
+            return "\n\n".join(
+                f"[段落{i+1}]\n[批量翻译] {p[:60]}..."
+                for i, p in enumerate(parts)
+            )
         return ""
 
     def get_status(self):
