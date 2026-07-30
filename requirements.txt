@@ -1,0 +1,18 @@
+# Core inference
+openvino>=2024.0
+nncf>=2.9
+
+# Document processing
+python-docx>=0.8.11
+PyPDF2>=3.0
+reportlab>=4.0
+
+# Paper search
+arxiv>=2.1
+requests>=2.31
+
+# Utilities
+numpy>=1.24
+
+# Model download
+modelscope>=1.9
