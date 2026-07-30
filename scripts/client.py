@@ -39,12 +39,38 @@ SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 SKILL_ROOT = os.path.dirname(SCRIPTS_DIR)
 
 # 临时工作目录（运行时脚本同步目标）
-TEMP_DIR = os.path.join(os.path.expanduser("~"), ".openvino", "temp", SKILL_NAME)
+# 优先使用 .openvino/temp，权限不足时回退到 AppData\Local\Temp
+_openvino_temp = os.path.join(os.path.expanduser("~"), ".openvino", "temp", SKILL_NAME)
+_fallback_temp = os.path.join(os.path.expanduser("~"), "AppData", "Local", "Temp", SKILL_NAME)
+for _candidate in (_openvino_temp, _fallback_temp):
+    try:
+        os.makedirs(_candidate, exist_ok=True)
+        _test_file = os.path.join(_candidate, ".write_test")
+        with open(_test_file, "w") as _f:
+            _f.write("ok")
+        os.remove(_test_file)
+        TEMP_DIR = _candidate
+        break
+    except (PermissionError, OSError):
+        continue
+else:
+    TEMP_DIR = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 # 日志目录
-LOG_DIR = os.path.join(os.path.expanduser("~"), ".openvino", "log")
-os.makedirs(LOG_DIR, exist_ok=True)
+_log_candidates = [
+    os.path.join(os.path.expanduser("~"), ".openvino", "log"),
+    os.path.join(os.path.expanduser("~"), "AppData", "Local", "Temp", f"{SKILL_NAME}_logs"),
+]
+for _candidate in _log_candidates:
+    try:
+        os.makedirs(_candidate, exist_ok=True)
+        LOG_DIR = _candidate
+        break
+    except (PermissionError, OSError):
+        continue
+else:
+    LOG_DIR = TEMP_DIR
 
 # 重试配置
 MAX_RETRIES = 3
@@ -71,6 +97,10 @@ def sync_scripts():
         dst = os.path.join(TEMP_DIR, script)
 
         if not os.path.exists(src):
+            continue
+
+        # 源和目标相同（TEMP_DIR 就是 scripts 目录），跳过复制
+        if os.path.normpath(src) == os.path.normpath(dst):
             continue
 
         src_hash = hashlib.md5(open(src, "rb").read()).hexdigest()
@@ -248,12 +278,23 @@ def main():
 
     # 清除缓存
     if args.clear_cache:
-        import tempfile
-        cache_dir = os.path.join(tempfile.gettempdir(), "paper_reading_cache")
-        cache_file = os.path.join(cache_dir, "annotations_cache.json")
-        if os.path.exists(cache_file):
-            os.remove(cache_file)
-            log("Cache cleared.")
+        # 尝试多个可能的缓存目录
+        _cache_candidates = [
+            os.path.join(os.path.expanduser("~"), "AppData", "Local", "Temp", "paper_reading_cache"),
+            os.path.join(os.path.expanduser("~"), ".openvino", "temp", "paper_reading_cache"),
+        ]
+        _cleared = False
+        for _cache_dir in _cache_candidates:
+            _cache_file = os.path.join(_cache_dir, "annotations_cache.json")
+            if os.path.exists(_cache_file):
+                try:
+                    os.remove(_cache_file)
+                    log(f"Cache cleared: {_cache_file}")
+                    _cleared = True
+                except PermissionError:
+                    pass
+        if not _cleared:
+            log("No cache file found or already cleared.")
         print(json.dumps({"ok": True, "message": "缓存已清除"}, ensure_ascii=False))
         if not args.input:
             sys.exit(0)
