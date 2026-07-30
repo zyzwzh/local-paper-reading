@@ -1,0 +1,47 @@
+# local-paper-reading Skill 规则
+
+当用户的消息匹配以下任一条件时，触发 local-paper-reading Skill：
+
+## 触发条件
+
+### 中文触发词
+- 找论文 / 搜论文 / 搜索论文 / 读论文 / 帮我读懂
+- 标注论文 / 标注文献 / 逐段翻译
+- 我想了解 XXX（XXX 是技术主题）
+- 帮我读这篇 PDF / 帮我读这篇论文
+
+### 英文触发词
+- find/read/search/annotate papers
+- translate this paper paragraph by paragraph
+- I want to learn about XXX
+
+### 关键词
+arXiv / OpenVINO / 英特尔 / intel / AIPC / 本地 / 离线 / offline
+
+## 调用方式
+
+唯一入口：`scripts\run.ps1`
+
+```powershell
+# 搜索+标注
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" "我想了解 Transformer"
+
+# 只搜索
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" "search deep learning" --search-only
+
+# 标注本地文件
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" "C:\path\to\paper.pdf"
+
+# 指定深度
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" "C:\path\to\paper.pdf" --depth intensive|skimming|overview
+
+# 续传下载
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" --continue
+
+# 清除缓存
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" --clear-cache
+```
+
+输出为 JSON 格式。检查 `ok` 字段判断成功/失败。退出码 3 表示模型下载中，需运行 `--continue`。
+
+详细文档见项目根目录 SKILL.md。
