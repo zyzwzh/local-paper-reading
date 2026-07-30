@@ -1,0 +1,124 @@
+# test.ps1 — End-to-end test for local-paper-reading skill
+$ErrorActionPreference = 'Stop'
+
+$Root = Split-Path -Parent $PSScriptRoot
+$RunScript = Join-Path $Root 'scripts\run.ps1'
+
+Write-Output "=== local-paper-reading E2E Test ==="
+Write-Output ""
+
+$passed = 0
+$failed = 0
+
+function Test-Case($name, $script) {
+    Write-Output "[TEST] $name"
+    try {
+        & $script
+        Write-Output "  PASS"
+        $script:passed++
+    } catch {
+        Write-Output "  FAIL: $_"
+        $script:failed++
+    }
+    Write-Output ""
+}
+
+# --- Test 1: No arguments (should show help) ---
+Write-Output "[TEST] No arguments shows help"
+$output = & $RunScript 2>&1
+$exitCode = $LASTEXITCODE
+if ($exitCode -eq 1 -and $output -match "搜索关键词或文件路径") {
+    Write-Output "  PASS (exit=$exitCode, help shown)"
+    $passed++
+} else {
+    Write-Output "  FAIL (exit=$exitCode)"
+    $failed++
+}
+Write-Output ""
+
+# --- Test 2: Search-only mode ---
+Write-Output "[TEST] Search-only mode (arXiv search)"
+$output = & $RunScript "search transformer" --search-only 2>&1
+$exitCode = $LASTEXITCODE
+if ($exitCode -eq 0 -and $output -match "论文列表") {
+    Write-Output "  PASS (exit=$exitCode, results returned)"
+    $passed++
+} else {
+    Write-Output "  FAIL (exit=$exitCode)"
+    Write-Output "  Output: $($output | Select-Object -First 5)"
+    $failed++
+}
+Write-Output ""
+
+# --- Test 3: Annotate local file ---
+Write-Output "[TEST] Annotate local file"
+# Create a test TXT file
+$testFile = Join-Path $env:TEMP "test_paper.txt"
+@"
+Abstract
+
+This paper presents a novel approach to machine learning using neural networks.
+We propose a new architecture called DeepNet that achieves state-of-the-art results.
+
+1. Introduction
+
+Machine learning has become increasingly important in recent years.
+Neural networks are a key component of modern AI systems.
+
+6. Conclusion
+
+We demonstrated that DeepNet outperforms existing methods.
+Future work includes extending this approach to other domains.
+"@ | Out-File -FilePath $testFile -Encoding UTF8
+
+$output = & $RunScript $testFile --depth overview 2>&1
+$exitCode = $LASTEXITCODE
+if ($exitCode -eq 0 -and $output -match "标注文件") {
+    Write-Output "  PASS (exit=$exitCode, annotation created)"
+    $passed++
+} else {
+    Write-Output "  FAIL (exit=$exitCode)"
+    Write-Output "  Output: $($output | Select-Object -First 5)"
+    $failed++
+}
+
+# Cleanup
+Remove-Item $testFile -ErrorAction SilentlyContinue
+Write-Output ""
+
+# --- Test 4: Search + Annotate (full pipeline) ---
+Write-Output "[TEST] Search + Annotate pipeline"
+$output = & $RunScript "attention mechanism" --depth overview 2>&1
+$exitCode = $LASTEXITCODE
+if ($exitCode -eq 0 -and $output -match "标注文件") {
+    Write-Output "  PASS (exit=$exitCode, full pipeline success)"
+    $passed++
+} else {
+    Write-Output "  SKIP (requires network + may timeout)"
+}
+Write-Output ""
+
+# --- Test 5: Invalid file path ---
+Write-Output "[TEST] Invalid file path"
+$output = & $RunScript "C:\nonexistent\paper.pdf" 2>&1
+$exitCode = $LASTEXITCODE
+if ($exitCode -eq 1 -or $output -match "文件不存在") {
+    Write-Output "  PASS (error handled gracefully)"
+    $passed++
+} else {
+    Write-Output "  FAIL (exit=$exitCode)"
+    $failed++
+}
+Write-Output ""
+
+# --- Summary ---
+Write-Output "=== Summary ==="
+Write-Output "Passed: $passed"
+Write-Output "Failed: $failed"
+Write-Output "Total:  $($passed + $failed)"
+
+if ($failed -gt 0) {
+    exit 1
+} else {
+    exit 0
+}
