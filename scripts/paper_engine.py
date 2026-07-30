@@ -32,10 +32,29 @@ except ImportError:
 # 0. 缓存层 — 段落哈希 → 标注结果
 # ============================================================
 
-CACHE_DIR = os.path.join(tempfile.gettempdir(), "paper_reading_cache")
-os.makedirs(CACHE_DIR, exist_ok=True)
+def _get_writable_dir(name):
+    """查找可写目录，回退到多个候选位置。全部不可写时返回 None。"""
+    candidates = [
+        os.path.join(os.path.expanduser("~"), "AppData", "Local", "Temp", name),
+        os.path.join(os.path.expanduser("~"), ".openvino", "temp", name),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), name),
+    ]
+    for d in candidates:
+        try:
+            os.makedirs(d, exist_ok=True)
+            test_file = os.path.join(d, ".write_test")
+            with open(test_file, "w") as f:
+                f.write("ok")
+            os.remove(test_file)
+            return d
+        except (PermissionError, OSError):
+            continue
+    # 所有目录都不可写 — 返回 None，缓存降级为纯内存模式
+    return None
+
+CACHE_DIR = _get_writable_dir("paper_reading_cache")
 _cache_lock = threading.Lock()
-_cache_data = None
+_cache_data = {}
 
 
 def _get_cache_key(text, task_type, context=""):
@@ -45,9 +64,9 @@ def _get_cache_key(text, task_type, context=""):
 
 
 def _load_cache():
-    """加载缓存文件"""
+    """加载缓存文件（磁盘不可读时使用内存缓存）"""
     global _cache_data
-    if _cache_data is not None:
+    if CACHE_DIR is None:
         return _cache_data
     cache_file = os.path.join(CACHE_DIR, "annotations_cache.json")
     if os.path.exists(cache_file):
@@ -62,7 +81,9 @@ def _load_cache():
 
 
 def _save_cache():
-    """保存缓存文件"""
+    """保存缓存文件（磁盘不可写时跳过，数据仍保留在内存中）"""
+    if CACHE_DIR is None:
+        return
     cache_file = os.path.join(CACHE_DIR, "annotations_cache.json")
     try:
         with open(cache_file, "w", encoding="utf-8") as f:
@@ -189,7 +210,9 @@ def download_paper(pdf_url, output_dir=None):
         raise RuntimeError("requests library not available")
 
     if output_dir is None:
-        output_dir = os.path.join(tempfile.gettempdir(), "paper_reading")
+        output_dir = _get_writable_dir("paper_reading")
+    if output_dir is None:
+        raise RuntimeError("无法找到可写目录来保存 PDF 下载")
     os.makedirs(output_dir, exist_ok=True)
 
     filename = pdf_url.split("/")[-1] + ".pdf"
@@ -1018,8 +1041,9 @@ def search_and_annotate(query, output_dir=None, depth="intensive", infer_callbac
     t0 = time.time()
 
     if output_dir is None:
-        output_dir = os.path.join(os.path.expanduser("~"), "Documents", "annotated_papers")
-    os.makedirs(output_dir, exist_ok=True)
+        output_dir = _get_writable_dir("annotated_papers")
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
 
     # Step 1: 搜索
     print(f"[engine] 搜索 arXiv: {query}")
@@ -1052,11 +1076,17 @@ def search_and_annotate(query, output_dir=None, depth="intensive", infer_callbac
 
     # Step 7: 写回 Word
     safe_title = re.sub(r'[\\/:*?"<>|]', "_", best["title"][:50])
-    output_path = os.path.join(output_dir, f"annotated_{safe_title}.docx")
-    write_annotated_docx(
-        annotated, output_path, best["title"],
-        f"arXiv:{best['arxiv_id']}", glossary, stats
-    )
+    if output_dir is not None:
+        output_path = os.path.join(output_dir, f"annotated_{safe_title}.docx")
+        try:
+            write_annotated_docx(
+                annotated, output_path, best["title"],
+                f"arXiv:{best['arxiv_id']}", glossary, stats
+            )
+        except PermissionError:
+            output_path = "(磁盘不可写，标注结果仅在内存中)"
+    else:
+        output_path = "(磁盘不可写，标注结果仅在内存中)"
 
     elapsed = time.time() - t0
     result = {
@@ -1087,8 +1117,9 @@ def annotate_file(file_path, output_dir=None, depth="intensive", infer_callback=
     t0 = time.time()
 
     if output_dir is None:
-        output_dir = os.path.join(os.path.expanduser("~"), "Documents", "annotated_papers")
-    os.makedirs(output_dir, exist_ok=True)
+        output_dir = _get_writable_dir("annotated_papers")
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
 
     if not os.path.exists(file_path):
         return {"ok": False, "error": f"文件不存在: {file_path}"}
@@ -1107,10 +1138,16 @@ def annotate_file(file_path, output_dir=None, depth="intensive", infer_callback=
 
     # 写回 Word
     base_name = Path(file_path).stem
-    output_path = os.path.join(output_dir, f"annotated_{base_name}.docx")
-    write_annotated_docx(
-        annotated, output_path, base_name, file_path, glossary, stats
-    )
+    if output_dir is not None:
+        output_path = os.path.join(output_dir, f"annotated_{base_name}.docx")
+        try:
+            write_annotated_docx(
+                annotated, output_path, base_name, file_path, glossary, stats
+            )
+        except PermissionError:
+            output_path = "(磁盘不可写，标注结果仅在内存中)"
+    else:
+        output_path = "(磁盘不可写，标注结果仅在内存中)"
 
     elapsed = time.time() - t0
     result = {
