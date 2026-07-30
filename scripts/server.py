@@ -34,9 +34,20 @@ SKILL_NAME = "local-paper-reading"
 PIPE_ADDRESS = f"\\\\.\\pipe\\{SKILL_NAME}"
 AUTHKEY = SKILL_NAME.encode("latin-1")
 
-# 日志目录
-LOG_DIR = os.path.join(os.path.expanduser("~"), ".openvino", "log")
-os.makedirs(LOG_DIR, exist_ok=True)
+# 日志目录（权限不足时回退到 AppData\Local\Temp）
+_log_candidates = [
+    os.path.join(os.path.expanduser("~"), ".openvino", "log"),
+    os.path.join(os.path.expanduser("~"), "AppData", "Local", "Temp", f"{SKILL_NAME}_logs"),
+]
+for _candidate in _log_candidates:
+    try:
+        os.makedirs(_candidate, exist_ok=True)
+        LOG_DIR = _candidate
+        break
+    except (PermissionError, OSError):
+        continue
+else:
+    LOG_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def log(msg):
