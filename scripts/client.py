@@ -195,6 +195,8 @@ def parse_args():
     parser.add_argument("--continue", dest="continue_download",
                         action="store_true",
                         help="续传模型下载")
+    parser.add_argument("--clear-cache", action="store_true",
+                        help="清除段落缓存（强制重新标注）")
 
     return parser.parse_args()
 
@@ -218,7 +220,7 @@ def main():
     args = parse_args()
 
     # 无输入：显示帮助
-    if not args.input and not args.continue_download:
+    if not args.input and not args.continue_download and not args.clear_cache:
         print(json.dumps({
             "ok": False,
             "error": "请提供搜索关键词或文件路径",
@@ -226,9 +228,35 @@ def main():
                 'run.ps1 "我想了解 Transformer"',
                 'run.ps1 "C:\\papers\\attention.pdf"',
                 'run.ps1 "search deep learning" --search-only',
-            ]
+                'run.ps1 "deep learning" --depth skimming',
+                'run.ps1 --clear-cache',
+            ],
+            "标注深度": {
+                "intensive": "精读 — 核心段落深度标注 + 辅助段落批量翻译",
+                "skimming": "泛读 — 仅摘要/结论深度标注，其余批量翻译",
+                "overview": "速览 — 只标注摘要和结论",
+            },
+            "优化特性": [
+                "分层路由：自动区分 core/support/skip 段落",
+                "全局术语表：保证全文翻译一致性",
+                "批量推理：10段合并1次调用，降低90%成本",
+                "并发处理：核心段落并行标注",
+                "段落缓存：二次运行秒出结果",
+            ],
         }, ensure_ascii=False, indent=2))
         sys.exit(1)
+
+    # 清除缓存
+    if args.clear_cache:
+        import tempfile
+        cache_dir = os.path.join(tempfile.gettempdir(), "paper_reading_cache")
+        cache_file = os.path.join(cache_dir, "annotations_cache.json")
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
+            log("Cache cleared.")
+        print(json.dumps({"ok": True, "message": "缓存已清除"}, ensure_ascii=False))
+        if not args.input:
+            sys.exit(0)
 
     # 获取 venv python
     venv_python = get_venv_python()
